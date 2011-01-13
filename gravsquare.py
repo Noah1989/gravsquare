@@ -12,41 +12,75 @@ class Square():
 
     def fill(self):
         self.filled = True
-        self.node.setColor(1, 1, 1)
+        self.node.setColor(0.5, 0.5, 0.5)
 
     def clear(self):
         self.filled = False
         self.force = 0.0
-        self.node.setColor(0, 0, 0)
+        self.node.setColor(0.1, 0.1, 0.1)
 
     def update_color(self):
         pass
 
 
+
+class Joint():
+
+    force = 0
+
+    def __init__(self, node):
+        self.node = node
+        
+
+
 class World(DirectObject):
 
-    size = 20
+    size = 10
 
     cursor_x = 0
     cursor_y = 0
 
     def __init__(self):
+
         self.template = loader.loadModel('plane')
+
+        self.background = aspect2d.attachNewNode('background')
+        self.background.setColor(0, 0, 0) 
+        self.background.setScale(2)                 
+        self.template.instanceTo(self.background)      
+  
         self.canvas = aspect2d.attachNewNode('canvas')
-        self.canvas.setScale(1.0 / self.size)  
-        correction = 0.5 * (1.0 / self.size - 1)
+        self.canvas.setScale(2.0 / self.size)  
+        correction = 1.0 / self.size - 1
         self.canvas.setPos(correction, 0, correction)
 
         self.squares = []
-
+        self.joints = []
+        
         for x in range(self.size):
             self.squares.append([])
             for y in range(self.size):
                 square_node = self.canvas.attachNewNode('square')
                 square_node.setPos(x, 0, y)
-                square_node.setColor(0, 0, 0)            
+                square_node.setColor(0.1, 0.1, 0.1) 
+                square_node.setScale(0.8)           
                 self.template.instanceTo(square_node)
                 self.squares[x].append(Square(square_node))
+                
+                joint_node = self.canvas.attachNewNode('joint')
+                joint_node.setPos(x, 0, y - 0.5)
+                joint_node.setColor(0.05, 0.05, 0.05) 
+                joint_node.setScale(0.6, 1, 0.2)
+                self.template.instanceTo(joint_node)
+                self.joints.append(Joint(square_node))
+
+                if x > 0:
+                    joint_node = self.canvas.attachNewNode('joint')
+                    joint_node.setPos(x - 0.5, 0, y)
+                    joint_node.setColor(0.05, 0.05, 0.05) 
+                    joint_node.setScale(0.2, 1, 0.6)
+                    self.template.instanceTo(joint_node)
+                    self.joints.append(Joint(square_node))
 
         self.cursor = self.canvas.attachNewNode('cursor')
         self.cursor.setColor(0.5, 0, 0)
