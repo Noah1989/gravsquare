@@ -96,7 +96,7 @@ class Square():
     
 
     def update_color(self):
-        self.node.setColor(0.5 * -self.force +0.5, 0.5 * self.force +0.5, 0.5)
+        self.node.setColor(0.1 * -self.force +0.5, 0.1 * self.force +0.5, 0.5)
 
 
 
@@ -105,6 +105,7 @@ class Joint():
     force = 0.0
 
     is_ground = False
+    is_horizontal = False
 
     connected_left_or_up = False
     connected_right_or_down = False
@@ -119,13 +120,16 @@ class Joint():
         if not self.get_is_connected():
             self.node.setColor(0.05, 0.05, 0.05)
         else:
-            self.node.setColor(0.02 * -self.force +0.2, 0.02 * self.force +0.2, 0.2)
+            if self.is_horizontal:
+                self.node.setColor(0.02 * -self.force +0.2, 0.2, 0.02 * self.force +0.2)
+            else:
+                self.node.setColor(0.02 * -self.force +0.2, 0.02 * self.force +0.2, 0.2)
         
 
 
 class World(DirectObject):
 
-    size = 20
+    size = 30
 
     cursor_x = 0
     cursor_y = 0
@@ -153,14 +157,14 @@ class World(DirectObject):
                 square_node = self.canvas.attachNewNode('square')
                 square_node.setPos(x, 0, y)
                 square_node.setColor(0.1, 0.1, 0.1) 
-                square_node.setScale(0.8)           
+                square_node.setScale(0.5)           
                 self.template.instanceTo(square_node)
                 self.squares[x].append(Square(square_node))
                 
                 joint_node = self.canvas.attachNewNode('joint')
                 joint_node.setPos(x, 0, y - 0.5)
                 joint_node.setColor(0.05, 0.05, 0.05) 
-                joint_node.setScale(0.6, 1, 0.2)
+                joint_node.setScale(0.5, 1, 0.5)
                 self.template.instanceTo(joint_node)
                 self.joints.append(Joint(joint_node))
 
@@ -170,17 +174,23 @@ class World(DirectObject):
                     self.squares[x][y-1].joint_up = self.joints[-1]
                 else:
                     self.joints[-1].is_ground = True
-               
+              
                 if x > 0:
                     joint_node = self.canvas.attachNewNode('joint')
                     joint_node.setPos(x - 0.5, 0, y)
                     joint_node.setColor(0.05, 0.05, 0.05) 
-                    joint_node.setScale(0.2, 1, 0.6)
+                    joint_node.setScale(0.5, 1, 0.5)
                     self.template.instanceTo(joint_node)
                     self.joints.append(Joint(joint_node))
-
+                    self.joints[-1].is_horizontal = True
+                  
                     self.squares[x][y].joint_left = self.joints[-1]
-                    self.squares[x-1][y].joint_right = self.joints[-1]
+                    self.squares[x-1][y].joint_right = self.joints[-1]                
+
+        for x in range(self.size):
+            for y in range(self.size):
+                if y < self.size / 2:
+                    self.squares[x][y].fill()
 
         self.cursor = self.canvas.attachNewNode('cursor')
         self.cursor.setColor(0.5, 0, 0)
@@ -194,6 +204,7 @@ class World(DirectObject):
         self.accept('space', self.fill)
         self.accept('delete', self.clear)
         self.accept('r', self.reset)
+        self.accept('d', self.distribute)
 
         taskMgr.add(self.calculate, 'calculate')
 
@@ -239,6 +250,10 @@ class World(DirectObject):
     def reset(self):
         for joint in self.joints:
             joint.force = 0
+
+    def distribute(self):
+        for joint in self.joints:
+            joint.force *= 0.9
 
 w = World()
 run()
