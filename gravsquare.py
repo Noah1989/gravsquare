@@ -1,10 +1,16 @@
 import math
+import random
 import direct.directbase.DirectStart
 from direct.showbase.DirectObject import DirectObject
 
 class Square():
 
-    mass = 10.0
+    gravity = -1.0
+
+    joint_left = None
+    joint_right = None
+    joint_up = None
+    joint_down = None
 
     def __init__(self, node):
         self.node = node
@@ -13,29 +19,113 @@ class Square():
     def fill(self):
         self.filled = True
         self.node.setColor(0.5, 0.5, 0.5)
+        if self.joint_left is not None:
+            self.joint_left.connected_right_or_down = True
+        if self.joint_up is not None:
+            self.joint_up.connected_right_or_down = True
+        if self.joint_right is not None:
+            self.joint_right.connected_left_or_up = True
+        if self.joint_down is not None:
+            self.joint_down.connected_left_or_up = True
+        
 
     def clear(self):
         self.filled = False
         self.force = 0.0
+        
+        if self.joint_left is not None:
+            self.joint_left.force = 0.0
+            self.joint_left.connected_right_or_down = False
+            
+        if self.joint_right is not None:
+            self.joint_right.force = 0.0
+            self.joint_right.connected_left_or_up = False
+            
+        if self.joint_up is not None:
+            self.joint_up.force = 0.0
+            self.joint_up.connected_right_or_down = False
+            
+        if self.joint_down is not None: 
+            self.joint_down.force = 0.0
+            self.joint_down.connected_left_or_up = False
+            
         self.node.setColor(0.1, 0.1, 0.1)
+        
+
+    def calculate(self):
+        self.force = self.gravity
+
+                
+        if self.joint_left is not None:
+            self.force -= self.joint_left.force
+            
+        if self.joint_right is not None:
+            self.force += self.joint_right.force
+            
+        if self.joint_up is not None:
+           self.force -= self.joint_up.force
+            
+        if self.joint_down is not None:
+           self.force += self.joint_down.force
+                     
+                     
+        forcable_joints = self.get_forcable_joints()
+        if len(forcable_joints) > 0:
+            distributed_force = self.force * min (1.9 / len(forcable_joints), 1)
+            #for item in forcable_joints:
+            #    distributed_force += item[0].force * item[1] * 0.001
+            #    item[0].force *= 0.999
+            for item in forcable_joints:
+                item[0].force -= distributed_force * item[1]
+                
+
+        
+
+
+    def get_forcable_joints(self):
+        result = []
+        if self.joint_down is not None and self.joint_down.get_is_connected():
+            result.append((self.joint_down, 1))
+        if self.joint_right is not None and self.joint_right.get_is_connected():
+            result.append((self.joint_right, 1))
+        if self.joint_up is not None and self.joint_up.get_is_connected():
+            result.append((self.joint_up, -1))
+        if self.joint_left is not None and self.joint_left.get_is_connected():
+            result.append((self.joint_left, -1))            
+        return result
+    
 
     def update_color(self):
-        pass
+        self.node.setColor(0.5 * -self.force +0.5, 0.5 * self.force +0.5, 0.5)
 
 
 
 class Joint():
 
-    force = 0
+    force = 0.0
 
+    is_ground = False
+
+    connected_left_or_up = False
+    connected_right_or_down = False
+
+    def get_is_connected(self):
+        return self.is_ground or (self.connected_left_or_up and self.connected_right_or_down)
+    
     def __init__(self, node):
         self.node = node
+
+    def update_color(self):
+        if not self.get_is_connected():
+            self.node.setColor(0.05, 0.05, 0.05)
+        else:
+            self.node.setColor(0.02 * -self.force +0.2, 0.02 * self.force +0.2, 0.2)
         
 
 
 class World(DirectObject):
 
-    size = 10
+    size = 20
 
     cursor_x = 0
     cursor_y = 0
@@ -72,15 +162,25 @@ class World(DirectObject):
                 joint_node.setColor(0.05, 0.05, 0.05) 
                 joint_node.setScale(0.6, 1, 0.2)
                 self.template.instanceTo(joint_node)
-                self.joints.append(Joint(square_node))
+                self.joints.append(Joint(joint_node))
 
+                self.squares[x][y].joint_down = self.joints[-1]
+
+                if y > 0:
+                    self.squares[x][y-1].joint_up = self.joints[-1]
+                else:
+                    self.joints[-1].is_ground = True
+               
                 if x > 0:
                     joint_node = self.canvas.attachNewNode('joint')
                     joint_node.setPos(x - 0.5, 0, y)
                     joint_node.setColor(0.05, 0.05, 0.05) 
                     joint_node.setScale(0.2, 1, 0.6)
                     self.template.instanceTo(joint_node)
-                    self.joints.append(Joint(square_node))
+                    self.joints.append(Joint(joint_node))
+
+                    self.squares[x][y].joint_left = self.joints[-1]
+                    self.squares[x-1][y].joint_right = self.joints[-1]
 
         self.cursor = self.canvas.attachNewNode('cursor')
         self.cursor.setColor(0.5, 0, 0)
@@ -93,17 +193,22 @@ class World(DirectObject):
         self.accept('arrow_down', self.cursor_down)
         self.accept('space', self.fill)
         self.accept('delete', self.clear)
+        self.accept('r', self.reset)
 
         taskMgr.add(self.calculate, 'calculate')
 
+
     def calculate(self, task):
-        
+
         for x in range(self.size):
             for y in range(self.size):
                 if self.squares[x][y].filled:
-                                        
+                    self.squares[x][y].calculate()            
                     self.squares[x][y].update_color()
-                        
+
+        for joint in self.joints:
+            joint.update_color()            
+        
         return task.cont
         
         
@@ -130,6 +235,10 @@ class World(DirectObject):
 
     def clear(self):
         self.squares[self.cursor_x][self.cursor_y].clear()
+
+    def reset(self):
+        for joint in self.joints:
+            joint.force = 0
 
 w = World()
 run()
